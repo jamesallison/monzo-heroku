@@ -9,6 +9,7 @@ import (
 	"time"
 	"strings"
 	"errors"
+	"strconv"
 )
 
 var (
@@ -21,10 +22,24 @@ type SlackMessagePayload struct {
 	Emoji    string `json:"icon_emoji"`
 	Username string `json:"username"`
 	Text     string `json:"text"`
+	Attachments []SlackAttachment `json:"attachments"`
 }
 
-// split this into another file, stupid go imports 😡
-type WebhookPayload struct {
+type SlackAttachment struct {
+	Fallback string  `json:"fallback"`
+	Color    string  `json:"color"`
+	Title    string  `json:"title"`
+	Text     string  `json:"text"`
+	Fields   []SlackField `json:"fields"`
+}
+
+type SlackField struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}
+
+type MonzoWebhookPayload struct {
 	Type string `json:"type"` // transaction.created
 	Data struct {
 		ID string `json:"id"`
@@ -82,14 +97,9 @@ func main() {
 func webhookHandler(w http.ResponseWriter, req *http.Request) {
 	log.Print("received /webhook")
 
-	// check req.Body
-	if req.Body == nil {
-		fmt.Print("FUCKING NIL")
-	}
-
 	// parse payload
 	decoder := json.NewDecoder(req.Body)
-	var monzoWebhookPayload WebhookPayload
+	var monzoWebhookPayload MonzoWebhookPayload
 	errParse := decoder.Decode(&monzoWebhookPayload)
 	if errParse != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -101,34 +111,35 @@ func webhookHandler(w http.ResponseWriter, req *http.Request) {
 
 	// check if type is transaction
 	if monzoWebhookPayload.Type == "transaction.created" {
-		// send webhook of transaction to slack
-		webhookErr := sendSlackWebhook(SlackMessagePayload{
+		// send message to slack with transaction details
+		webhookErr := sendSlackMessage(SlackMessagePayload{
 				Emoji: "moneybag",
 				Username: "MoneyBot",
 				Text: "You have recieved a new transaction. Description: " + monzoWebhookPayload.Data.Description,
+				Attachments: generateAttachments(monzoWebhookPayload),
 			})
 		if webhookErr != nil {
 			log.Print("ERROR: could not post message to Slack")
 			log.Print(webhookErr.Error())
+		} else {
+			log.Print("successfully posted to Slack!")
 		}
 	} else {
-		log.Print("Received webhook was not transaction.created, it was:" + monzoWebhookPayload.Type)
+		log.Print("Webhook from Monzo was not transaction.created, it was:" + monzoWebhookPayload.Type)
 	}
 
 	// tell Monzo we have received the webhook all okay
 	fmt.Fprintf(w, "OK")
 }
 
-func sendSlackWebhook(payload SlackMessagePayload) error {
+func sendSlackMessage(payload SlackMessagePayload) error {
 	// parse the Monzo payload
 	sp, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 	p := strings.NewReader(string(sp))
-	fmt.Print(p)
 	req, err := http.NewRequest("POST", slackWebhookUrl, p)
-	fmt.Print(slackWebhookUrl)
 	if err != nil {
 		return err
 	}
@@ -144,4 +155,39 @@ func sendSlackWebhook(payload SlackMessagePayload) error {
 	}
 
 	return nil
+}
+
+func generateAttachments(payload MonzoWebhookPayload) []SlackAttachment {
+	var attachments []SlackAttachment
+
+	// create fields
+	amountField := SlackField{
+		Title: "Amount",
+		Value: strconv.Itoa(payload.Data.Amount) + " pennies",
+		Short: true,
+	}
+	balanceField := SlackField{
+		Title: "Current Balance",
+		Value: strconv.Itoa(payload.Data.AccountBalance) + " pennies",
+		Short: true,
+	}
+	categoryField := SlackField{
+		Title: "Category",
+		Value: payload.Data.Category,
+		Short: true,
+	}
+	fields := []SlackField{amountField, balanceField, categoryField}
+
+	// create the attachment
+	attachment := SlackAttachment{
+		Fallback: payload.Data.Description,
+		Color: "#36a64f",
+		Title: "New Transaction!",
+		Text: payload.Data.Description,
+		Fields: fields,
+	}
+
+	attachments = append(attachments, attachment)
+
+	return attachments
 }
