@@ -1,7 +1,16 @@
 {
-  "name": "monzo-heroku",
-  "description": "",
-  "mount_dir": "src/github.com/monzo/monzo-heroku",
-  "website": "http://github.com/monzo/monzo-heroku",
-  "repository": "http://github.com/monzo/monzo-heroku"
+	"name": "monzo-heroku",
+	"description": "",
+	"mount_dir": "src/github.com/monzo/monzo-heroku",
+	"website": "http://github.com/monzo/monzo-heroku",
+	"repository": "http://github.com/monzo/monzo-heroku",
+	"env": {
+		"ACCESSTOKEN": {
+			"description": "Access token from the Monzo Developers portal"
+		},
+		"SLACKWEBHOOK": {
+			"description": "The webhook URL provided by Slack",
+			"value": "https://hooks.slack.com/services/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"
+		}
+	}
 }
