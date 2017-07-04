@@ -89,9 +89,15 @@ func main() {
 		log.Fatal("$SLACKWEBHOOK must be set")
 	}
 
+	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/webhook", webhookHandler)
 
 	http.ListenAndServe(":" + port, nil)
+}
+
+func rootHandler(w http.ResponseWriter, req *http.Request) {
+	log.Print("received /")
+	fmt.Fprintf(w, "Nice one 😄 Now register a new webhook in the Monzo developer portal with URL: http://" + req.Host + "/webhook")
 }
 
 func webhookHandler(w http.ResponseWriter, req *http.Request) {
