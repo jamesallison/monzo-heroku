@@ -6,9 +6,9 @@ import (
 	"os"
 	"fmt"
 	"encoding/json"
+	"time"
 	"strings"
 	"errors"
-	"time"
 )
 
 var (
@@ -61,8 +61,8 @@ type WebhookPayload struct {
 func main() {
 	// load up environment vars
 	port := os.Getenv("PORT")
-	accessToken := os.Getenv("ACCESSTOKEN")
-	slackWebhook := os.Getenv("SLACKWEBHOOK")
+	accessToken = os.Getenv("ACCESSTOKEN")
+	slackWebhookUrl = os.Getenv("SLACKWEBHOOK")
 
 	if port == "" {
 		log.Fatal("$PORT must be set")
@@ -70,7 +70,7 @@ func main() {
 	if accessToken == "" {
 		log.Fatal("$ACCESSTOKEN must be set")
 	}
-	if slackWebhook == "" {
+	if slackWebhookUrl == "" {
 		log.Fatal("$SLACKWEBHOOK must be set")
 	}
 
@@ -81,6 +81,11 @@ func main() {
 
 func webhookHandler(w http.ResponseWriter, req *http.Request) {
 	log.Print("received /webhook")
+
+	// check req.Body
+	if req.Body == nil {
+		fmt.Print("FUCKING NIL")
+	}
 
 	// parse payload
 	decoder := json.NewDecoder(req.Body)
@@ -98,7 +103,7 @@ func webhookHandler(w http.ResponseWriter, req *http.Request) {
 	if monzoWebhookPayload.Type == "transaction.created" {
 		// send webhook of transaction to slack
 		webhookErr := sendSlackWebhook(SlackMessagePayload{
-				Emoji: "money_bag",
+				Emoji: "moneybag",
 				Username: "MoneyBot",
 				Text: "You have recieved a new transaction. Description: " + monzoWebhookPayload.Data.Description,
 			})
@@ -116,9 +121,17 @@ func webhookHandler(w http.ResponseWriter, req *http.Request) {
 
 func sendSlackWebhook(payload SlackMessagePayload) error {
 	// parse the Monzo payload
-	sp, _ := json.Marshal(payload)
+	sp, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 	p := strings.NewReader(string(sp))
-	req, _ := http.NewRequest("POST", slackWebhookUrl, p)
+	fmt.Print(p)
+	req, err := http.NewRequest("POST", slackWebhookUrl, p)
+	fmt.Print(slackWebhookUrl)
+	if err != nil {
+		return err
+	}
 
 	req.Header.Add("content-type", "application/json")
 	req.Header.Add("cache-control", "no-cache")
